@@ -36,6 +36,7 @@ qom-obj-y = qom/
 # io-obj-y is code used by both qemu system emulation and qemu-img
 
 io-obj-y = io/
+io-obj-y += yank.o
 
 ######################################################################
 # Target independent part of system emulation. The long term path is to

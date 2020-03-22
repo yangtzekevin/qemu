@@ -43,6 +43,8 @@
 #include "block/nbd.h"
 #include "block/block_int.h"
 
+#include "yank.h"
+
 #define EN_OPTSTR ":exportname="
 #define MAX_NBD_REQUESTS    16
 
@@ -90,6 +92,7 @@ typedef struct BDRVNBDState {
     QCryptoTLSCreds *tlscreds;
     const char *hostname;
     char *x_dirty_bitmap;
+    bool yank;
 } BDRVNBDState;
 
 static int nbd_client_connect(BlockDriverState *bs, Error **errp);
@@ -1369,6 +1372,14 @@ static int nbd_client_reopen_prepare(BDRVReopenState *state,
     return 0;
 }
 
+static void nbd_yank(void *opaque)
+{
+    BlockDriverState *bs = opaque;
+    BDRVNBDState *s = (BDRVNBDState *)bs->opaque;
+
+    s->state = NBD_CLIENT_QUIT;
+}
+
 static void nbd_client_close(BlockDriverState *bs)
 {
     BDRVNBDState *s = (BDRVNBDState *)bs->opaque;
@@ -1381,14 +1392,17 @@ static void nbd_client_close(BlockDriverState *bs)
     nbd_teardown_connection(bs);
 }
 
-static QIOChannelSocket *nbd_establish_connection(SocketAddress *saddr,
+static QIOChannelSocket *nbd_establish_connection(BlockDriverState *bs,
+                                                  SocketAddress *saddr,
                                                   Error **errp)
 {
+    BDRVNBDState *s = (BDRVNBDState *)bs->opaque;
     QIOChannelSocket *sioc;
     Error *local_err = NULL;
 
     sioc = qio_channel_socket_new();
     qio_channel_set_name(QIO_CHANNEL(sioc), "nbd-client");
+    qio_channel_set_yank(QIO_CHANNEL(sioc), s->yank);
 
     qio_channel_socket_connect_sync(sioc, saddr, &local_err);
     if (local_err) {
@@ -1412,7 +1426,7 @@ static int nbd_client_connect(BlockDriverState *bs, Error **errp)
      * establish TCP connection, return error if it fails
      * TODO: Configurable retry-until-timeout behaviour.
      */
-    QIOChannelSocket *sioc = nbd_establish_connection(s->saddr, errp);
+    QIOChannelSocket *sioc = nbd_establish_connection(bs, s->saddr, errp);
 
     if (!sioc) {
         return -ECONNREFUSED;
@@ -1801,6 +1815,12 @@ static QemuOptsList nbd_runtime_opts = {
                     "future requests before a successful reconnect will "
                     "immediately fail. Default 0",
         },
+        {
+            .name = "yank",
+            .type = QEMU_OPT_BOOL,
+            .help = "Forcibly close the connection and don't attempt to "
+                    "reconnect when the 'yank' qmp command is executed.",
+        },
         { /* end of list */ }
     },
 };
@@ -1860,6 +1880,8 @@ static int nbd_process_options(BlockDriverState *bs, QDict *options,
 
     s->reconnect_delay = qemu_opt_get_number(opts, "reconnect-delay", 0);
 
+    s->yank = qemu_opt_get_bool(opts, "yank", false);
+
     ret = 0;
 
  error:
@@ -1895,6 +1917,10 @@ static int nbd_open(BlockDriverState *bs, QDict *options, int flags,
     }
     /* successfully connected */
     s->state = NBD_CLIENT_CONNECTED;
+
+    if (s->yank) {
+        yank_register_function(nbd_yank, bs);
+    }
 
     s->connection_co = qemu_coroutine_create(nbd_connection_entry, s);
     bdrv_inc_in_flight(bs);
@@ -1947,6 +1973,10 @@ static void nbd_close(BlockDriverState *bs)
     BDRVNBDState *s = bs->opaque;
 
     nbd_client_close(bs);
+
+    if (s->yank) {
+        yank_unregister_function(nbd_yank, bs);
+    }
 
     object_unref(OBJECT(s->tlscreds));
     qapi_free_SocketAddress(s->saddr);

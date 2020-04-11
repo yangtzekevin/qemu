@@ -804,7 +804,7 @@ def qmp_start_colo(fd, remote):
             {"execute": "object-add", "arguments": {"qom-type": "filter-redirector", "id": "redire0", "props": {"insert": "before", "position": "id=rew0", "netdev": "hn0", "queue": "rx", "indev": "comp_out", "vnet_hdr_support": vnet_hdr_support}}},
             {"execute": "object-add", "arguments": {"qom-type": "filter-redirector", "id": "redire1", "props": {"insert": "before", "position": "id=rew0", "netdev": "hn0", "queue": "rx", "outdev": "comp0", "vnet_hdr_support": vnet_hdr_support}}},
             {"execute": "object-add", "arguments": {"qom-type": "iothread", "id": "iothread1"}},
-            {"execute": "object-add", "arguments": {"qom-type": "colo-compare", "id": "comp0", "props": {"primary_in": "comp0-0", "secondary_in": "compare1", "outdev": "comp_out0", "iothread": "iothread1", "compare_timeout": int(OCF_RESKEY_compare_timeout), "expired_scan_cycle": int(OCF_RESKEY_expired_scan_cycle), "vnet_hdr_support": vnet_hdr_support}}}
+            {"execute": "object-add", "arguments": {"qom-type": "colo-compare", "id": "comp0", "props": {"primary_in": "comp0-0", "secondary_in": "compare1", "outdev": "comp_out0", "iothread": "iothread1", "vnet_hdr_support": vnet_hdr_support}}}
             ])
     else:
         qmp_execute(fd, [
@@ -812,7 +812,7 @@ def qmp_start_colo(fd, remote):
             {"execute": "object-add", "arguments": {"qom-type": "filter-redirector", "id": "redire0", "props": {"netdev": "hn0", "queue": "rx", "indev": "comp_out", "vnet_hdr_support": vnet_hdr_support}}},
             {"execute": "object-add", "arguments": {"qom-type": "filter-redirector", "id": "redire1", "props": {"netdev": "hn0", "queue": "rx", "outdev": "comp0", "vnet_hdr_support": vnet_hdr_support}}},
             {"execute": "object-add", "arguments": {"qom-type": "iothread", "id": "iothread1"}},
-            {"execute": "object-add", "arguments": {"qom-type": "colo-compare", "id": "comp0", "props": {"primary_in": "comp0-0", "secondary_in": "compare1", "outdev": "comp_out0", "iothread": "iothread1", "compare_timeout": int(OCF_RESKEY_compare_timeout), "expired_scan_cycle": int(OCF_RESKEY_expired_scan_cycle), "vnet_hdr_support": vnet_hdr_support}}}
+            {"execute": "object-add", "arguments": {"qom-type": "colo-compare", "id": "comp0", "props": {"primary_in": "comp0-0", "secondary_in": "compare1", "outdev": "comp_out0", "iothread": "iothread1", "vnet_hdr_support": vnet_hdr_support}}}
             ])
 
     # Start COLO

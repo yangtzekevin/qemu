@@ -25,7 +25,10 @@ from avocado.utils import cloudinit
 from avocado.utils import ssh
 from avocado.utils.path import find_command
 
-from avocado_qemu import pick_default_qemu_bin, BUILD_DIR, SOURCE_DIR
+from avocado_qemu import pick_default_qemu_bin, SRC_ROOT_DIR
+
+BUILD_DIR = SRC_ROOT_DIR
+SOURCE_DIR = SRC_ROOT_DIR
 
 def iperf3_available():
     try:

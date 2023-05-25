@@ -447,16 +447,16 @@ static int colo_do_checkpoint_transaction(MigrationState *s,
         goto out;
     }
 
-    colo_send_message(s->to_dst_file, COLO_MESSAGE_VMSTATE_SEND, &local_err);
-    if (local_err) {
-        qemu_mutex_unlock_iothread();
-        goto out;
-    }
     /* Note: device state is saved into buffer */
     ret = qemu_save_device_state(fb);
 
     qemu_mutex_unlock_iothread();
     if (ret < 0) {
+        goto out;
+    }
+
+    colo_send_message(s->to_dst_file, COLO_MESSAGE_VMSTATE_SEND, &local_err);
+    if (local_err) {
         goto out;
     }
 

@@ -3513,6 +3513,7 @@ int colo_init_ram_cache(void)
     }
 
     colo_init_ram_state();
+    colo_flush_threads_init();
     return 0;
 }
 
@@ -3542,6 +3543,8 @@ void colo_incoming_start_dirty_log(void)
 void colo_release_ram_cache(void)
 {
     RAMBlock *block;
+
+    colo_flush_threads_cleanup();
 
     memory_global_dirty_log_stop(GLOBAL_DIRTY_MIGRATION);
     RAMBLOCK_FOREACH_NOT_IGNORED(block) {

@@ -17,7 +17,13 @@ typedef struct ColoFlushParams {
     QemuSemaphore sem;
     QemuMutex mutex;
     bool quit;
+    unsigned long thread_mask;
+    unsigned long thread_bits;
 } ColoFlushParams;
+
+/* 4096 * 4k = 16m bytes chunk size */
+#define COLO_FLUSH_CHUNK_SHIFT 12
+#define COLO_FLUSH_CHUNK_SIZE (1 << COLO_FLUSH_CHUNK_SHIFT)
 
 void colo_flush_threads_init(void);
 void colo_flush_threads_cleanup(void);

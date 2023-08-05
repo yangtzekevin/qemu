@@ -34,6 +34,7 @@
 #include "qemu/main-loop.h"
 #include "xbzrle.h"
 #include "ram-compress.h"
+#include "ram-colo.h"
 #include "ram.h"
 #include "migration.h"
 #include "migration-stats.h"
@@ -798,12 +799,15 @@ migration_clear_memory_region_dirty_bitmap_range(RAMBlock *rb,
  * @num: the number of contiguous dirty pages
  */
 static inline
-unsigned long colo_bitmap_find_dirty(RAMState *rs, RAMBlock *rb,
+unsigned long colo_bitmap_find_dirty(ColoFlushParams *thread, RAMBlock *rb,
                                      unsigned long start, unsigned long *num)
 {
     unsigned long size = rb->used_length >> TARGET_PAGE_BITS;
     unsigned long *bitmap = rb->bmap;
-    unsigned long first, next;
+    unsigned long thread_mask = thread->thread_mask;
+    unsigned long thread_bits = thread->thread_bits;
+    unsigned long first = start;
+    unsigned long next;
 
     *num = 0;
 
@@ -811,12 +815,49 @@ unsigned long colo_bitmap_find_dirty(RAMState *rs, RAMBlock *rb,
         return size;
     }
 
-    first = find_next_bit(bitmap, size, start);
-    if (first >= size) {
-        return first;
+    while (true) {
+        first = find_next_bit(bitmap, size, first);
+        if (first >= size) {
+            return first;
+        }
+
+        if ((first & thread_mask) == thread_bits) {
+            /* Beginning lies within one of our chunks */
+            break;
+        }
+
+        /* Round up to our next chunk */
+
+        if ((first & thread_mask) > thread_bits) {
+            /*
+             * Go to the next stripe by adding '1' to the left of the
+             * thread bits.
+             */
+            first |= thread_mask;
+            first += COLO_FLUSH_CHUNK_SIZE;
+        }
+
+        /* Set thread bits to our thread */
+        first |= thread_mask;
+        first &= thread_bits;
+
+        /* Clear chunk offset */
+        first &= ~(COLO_FLUSH_CHUNK_SIZE - 1);
+
+        if (first >= size) {
+            return first;
+        }
     }
+
     next = find_next_zero_bit(bitmap, size, first + 1);
+
+    if (thread_mask) {
+        /* num_threads > 1 */
+        unsigned long chunk_end = first | (COLO_FLUSH_CHUNK_SIZE - 1);
+        next = MIN(next, chunk_end);
+    }
     assert(next >= first);
+
     *num = next - first;
     return first;
 }
@@ -3830,9 +3871,10 @@ void colo_flush_ram_cache(void)
         block = QLIST_FIRST_RCU(&ram_list.blocks);
 
         while (block) {
+            ColoFlushParams params = { 0 };
             unsigned long num = 0;
 
-            offset = colo_bitmap_find_dirty(ram_state, block, offset, &num);
+            offset = colo_bitmap_find_dirty(&params, block, offset, &num);
             if (!offset_in_ramblock(block,
                                     ((ram_addr_t)offset) << TARGET_PAGE_BITS)) {
                 offset = 0;

@@ -81,6 +81,9 @@ void colo_flush_threads_cleanup(void) {
 
 void colo_flush_threads_init(void) {
     int num_threads = migrate_colo_flush_threads();
+    unsigned long thread_mask = num_threads;
+    thread_mask -= 1; // before: 0100 now: 0011
+    thread_mask <<= COLO_FLUSH_CHUNK_SHIFT;
 
     colo_flush_threads = g_new0(FlushThreads, 1);
     colo_flush_threads->num_threads = num_threads;
@@ -96,6 +99,9 @@ void colo_flush_threads_init(void) {
         qemu_sem_init(&thread->sem, 0);
         qemu_mutex_init(&thread->mutex);
         thread->quit = false;
+        thread->thread_mask = thread_mask;
+        thread->thread_bits = n << COLO_FLUSH_CHUNK_SHIFT;
+
         qemu_thread_create(&thread->thread, "flush thread",
                            colo_flush_ram_cache_thread, thread,
                            QEMU_THREAD_JOINABLE);

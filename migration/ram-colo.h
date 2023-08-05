@@ -28,5 +28,6 @@ typedef struct ColoFlushParams {
 void colo_flush_threads_init(void);
 void colo_flush_threads_cleanup(void);
 void colo_flush_threads_run(void);
+void colo_flush_threads_wait(void);
 
 #endif // QEMU_MIGRATION_RAM_COLO.H

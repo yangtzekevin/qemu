@@ -57,6 +57,10 @@ void colo_flush_threads_run(void) {
         struct ColoFlushParams *thread = &colo_flush_threads->threads[n];
         qemu_sem_post(&thread->sem);
     }
+}
+
+void colo_flush_threads_wait(void) {
+    int num_threads = colo_flush_threads->num_threads;
 
     for (int n = 0; n < num_threads; n++) {
         qemu_sem_wait(&colo_flush_threads->wait_sem);

@@ -3884,7 +3884,7 @@ void _colo_flush_ram_cache(ColoFlushParams *thread)
  * Flush content of RAM cache into SVM's memory.
  * Only flush the pages that be dirtied by PVM or SVM or both.
  */
-void colo_flush_ram_cache(void)
+void colo_flush_ram_cache_begin(void)
 {
     RAMBlock *block = NULL;
 
@@ -3900,6 +3900,13 @@ void colo_flush_ram_cache(void)
 
     barrier();
     colo_flush_threads_run();
+}
+
+void colo_flush_ram_cache_wait(void)
+{
+    RAMBlock *block = NULL;
+
+    colo_flush_threads_wait();
     barrier();
 
     WITH_RCU_READ_LOCK_GUARD() {

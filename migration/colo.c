@@ -35,6 +35,7 @@
 #include "sysemu/runstate.h"
 #include "net/filter.h"
 #include "options.h"
+#include "migration-stats.h"
 
 static bool vmstate_loading;
 static Notifier packets_compare_notifier;
@@ -533,6 +534,9 @@ out:
     if (local_err) {
         error_report_err(local_err);
     }
+
+    s->colo_last_transferred_bytes =
+            migration_transferred_bytes(s->to_dst_file);
     return ret;
 }
 
@@ -541,16 +545,31 @@ static void colo_compare_notify_checkpoint(Notifier *notifier, void *data)
     colo_checkpoint_notify(data);
 }
 
-static bool colo_need_migrate_ram_background(MigrationState *s)
+typedef enum ColoAction {
+    ACTION_NONE,
+    ACTION_BACKGROUND,
+    ACTION_CHECKPOINT
+} ColoAction;
+
+static ColoAction colo_dirty_check(MigrationState *s)
 {
-    uint64_t pending_size, pend_pre, pend_post;
-    uint64_t threshold = s->parameters.x_dirty_threshold;
+    uint64_t pending_bytes, pend_pre, pend_post, transferred_bytes;
 
     qemu_savevm_state_pending_exact(&pend_pre, &pend_post);
-    pending_size = pend_pre + pend_post;
+    pending_bytes = pend_pre + pend_post;
 
-    trace_colo_need_migrate_ram_background(pending_size);
-    return (pending_size >= threshold);
+    transferred_bytes = migration_transferred_bytes(s->to_dst_file) -
+            s->colo_last_transferred_bytes;
+
+    trace_colo_need_migrate_ram_background(pending_bytes, transferred_bytes);
+
+    if (pending_bytes + transferred_bytes >= migrate_dirty_checkpoint()) {
+        return ACTION_CHECKPOINT;
+    } else if (pending_bytes >= migrate_dirty_threshold()) {
+        return ACTION_BACKGROUND;
+    } else {
+        return ACTION_NONE;
+    }
 }
 
 static void colo_process_checkpoint(MigrationState *s)
@@ -624,7 +643,15 @@ static void colo_process_checkpoint(MigrationState *s)
                 goto out;
             }
         } else {
-            if (colo_need_migrate_ram_background(s)) {
+            ColoAction action = colo_dirty_check(s);
+
+            if (action == ACTION_CHECKPOINT) {
+                qemu_event_reset(&s->colo_checkpoint_event);
+                ret = colo_do_checkpoint_transaction(s, bioc, fb);
+                if (ret < 0) {
+                    goto out;
+                }
+            } else if (action == ACTION_BACKGROUND) {
                 colo_send_message(s->to_dst_file,
                                   COLO_MESSAGE_MIGRATE_RAM_BACKGROUND,
                                   &local_err);
@@ -705,6 +732,8 @@ void migrate_start_colo_process(MigrationState *s)
                                 colo_checkpoint_notify, s);
     s->colo_dirty_check_timer = timer_new_ms(QEMU_CLOCK_HOST,
                                     colo_dirty_check_notify, s);
+    s->colo_last_transferred_bytes =
+            migration_transferred_bytes(s->to_dst_file);
 
     qemu_sem_init(&s->colo_exit_sem, 0);
     colo_process_checkpoint(s);

@@ -350,6 +350,7 @@ struct MigrationState {
     int64_t colo_checkpoint_time;
     QEMUTimer *colo_delay_timer;
     QEMUTimer *colo_dirty_check_timer;
+    uint64_t colo_last_transferred_bytes;
 
     /* The first error that has occurred.
        We used the mutex to be able to return the 1st error message */

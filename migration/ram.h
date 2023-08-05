@@ -32,6 +32,7 @@
 #include "qapi/qapi-types-migration.h"
 #include "exec/cpu-common.h"
 #include "io/channel.h"
+#include "ram-colo.h"
 
 extern XBZRLECacheStats xbzrle_counters;
 extern CompressionStats compression_counters;
@@ -79,6 +80,7 @@ void *postcopy_preempt_thread(void *opaque);
 
 /* ram cache */
 int colo_init_ram_cache(void);
+void _colo_flush_ram_cache(ColoFlushParams *thread);
 void colo_flush_ram_cache(void);
 void colo_release_ram_cache(void);
 void colo_incoming_start_dirty_log(void);

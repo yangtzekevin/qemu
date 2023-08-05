@@ -21,7 +21,7 @@ typedef struct FlushThreads {
     struct ColoFlushParams* threads;
 } FlushThreads;
 
-FlushThreads *colo_flush_threads;
+FlushThreads *colo_flush_threads = NULL;
 
 static void *colo_flush_ram_cache_thread(void *opaque) {
     ColoFlushParams *thread = opaque;
@@ -37,6 +37,7 @@ static void *colo_flush_ram_cache_thread(void *opaque) {
         }
         qemu_mutex_unlock(&thread->mutex);
 
+        _colo_flush_ram_cache(thread);
         qemu_sem_post(&colo_flush_threads->wait_sem);
     }
 
@@ -45,6 +46,13 @@ static void *colo_flush_ram_cache_thread(void *opaque) {
 
 void colo_flush_threads_run(void) {
     int num_threads = colo_flush_threads->num_threads;
+
+    if (num_threads == 0) {
+        ColoFlushParams thread = { 0 };
+        _colo_flush_ram_cache(&thread);
+        return;
+    }
+
     for (int n = 0; n < num_threads; n++) {
         struct ColoFlushParams *thread = &colo_flush_threads->threads[n];
         qemu_sem_post(&thread->sem);
@@ -77,6 +85,7 @@ void colo_flush_threads_cleanup(void) {
     }
 
     g_free(colo_flush_threads);
+    colo_flush_threads = NULL;
 }
 
 void colo_flush_threads_init(void) {

@@ -3847,6 +3847,39 @@ static bool postcopy_is_running(void)
     return ps >= POSTCOPY_INCOMING_LISTENING && ps < POSTCOPY_INCOMING_END;
 }
 
+void _colo_flush_ram_cache(ColoFlushParams *thread)
+{
+    RAMBlock *block = NULL;
+    void *dst_host;
+    void *src_host;
+    unsigned long offset = 0;
+
+    barrier();
+    WITH_RCU_READ_LOCK_GUARD() {
+        block = QLIST_FIRST_RCU(&ram_list.blocks);
+
+        while (block) {
+            unsigned long num = 0;
+
+            offset = colo_bitmap_find_dirty(thread, block, offset, &num);
+            if (!offset_in_ramblock(block,
+                                    ((ram_addr_t)offset) << TARGET_PAGE_BITS)) {
+                offset = 0;
+                num = 0;
+                block = QLIST_NEXT_RCU(block, next);
+            } else {
+                dst_host = block->host
+                         + (((ram_addr_t)offset) << TARGET_PAGE_BITS);
+                src_host = block->colo_cache
+                         + (((ram_addr_t)offset) << TARGET_PAGE_BITS);
+                memcpy(dst_host, src_host, TARGET_PAGE_SIZE * num);
+                offset += num;
+            }
+        }
+    }
+    barrier();
+}
+
 /*
  * Flush content of RAM cache into SVM's memory.
  * Only flush the pages that be dirtied by PVM or SVM or both.
@@ -3854,9 +3887,6 @@ static bool postcopy_is_running(void)
 void colo_flush_ram_cache(void)
 {
     RAMBlock *block = NULL;
-    void *dst_host;
-    void *src_host;
-    unsigned long offset = 0;
 
     memory_global_dirty_log_sync(false);
     qemu_mutex_lock(&ram_state->bitmap_mutex);
@@ -3867,32 +3897,37 @@ void colo_flush_ram_cache(void)
     }
 
     trace_colo_flush_ram_cache_begin(ram_state->migration_dirty_pages);
+
+    barrier();
+    colo_flush_threads_run();
+    barrier();
+
     WITH_RCU_READ_LOCK_GUARD() {
         block = QLIST_FIRST_RCU(&ram_list.blocks);
 
         while (block) {
-            ColoFlushParams params = { 0 };
-            unsigned long num = 0;
-
-            offset = colo_bitmap_find_dirty(&params, block, offset, &num);
-            if (!offset_in_ramblock(block,
-                                    ((ram_addr_t)offset) << TARGET_PAGE_BITS)) {
-                offset = 0;
-                num = 0;
+            if (migrate_ram_is_ignored(block)) {
                 block = QLIST_NEXT_RCU(block, next);
-            } else {
-                unsigned long i = 0;
-
-                for (i = 0; i < num; i++) {
-                    migration_bitmap_clear_dirty(ram_state, block, offset + i);
-                }
-                dst_host = block->host
-                         + (((ram_addr_t)offset) << TARGET_PAGE_BITS);
-                src_host = block->colo_cache
-                         + (((ram_addr_t)offset) << TARGET_PAGE_BITS);
-                memcpy(dst_host, src_host, TARGET_PAGE_SIZE * num);
-                offset += num;
+                continue;
             }
+
+            unsigned long offset = 0, num = 0;
+            while (true) {
+                ColoFlushParams params = { 0 };
+                offset = colo_bitmap_find_dirty(&params, block, offset, &num);
+                if (!offset_in_ramblock(
+                            block, ((ram_addr_t)offset) << TARGET_PAGE_BITS)) {
+                    break;
+                } else {
+                    for (unsigned long i = 0; i < num; i++) {
+                        migration_bitmap_clear_dirty(ram_state, block,
+                                                     offset + i);
+                    }
+                    offset += num;
+                }
+            }
+
+            block = QLIST_NEXT_RCU(block, next);
         }
     }
     qemu_mutex_unlock(&ram_state->bitmap_mutex);

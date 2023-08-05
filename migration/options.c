@@ -58,6 +58,7 @@
 #define DEFAULT_MIGRATE_X_CHECKPOINT_DELAY (200 * 100)
 #define DEFAULT_MIGRATE_X_DIRTY_CHECK_DELAY 1000
 #define DEFAULT_MIGRATE_X_DIRTY_THRESHOLD (100 * 1024 * 1024UL)
+#define DEFAULT_MIGRATE_X_DIRTY_CHECKPOINT (512 * 1024 * 1024UL)
 #define DEFAULT_MIGRATE_X_COLO_FLUSH_THREADS 0
 #define DEFAULT_MIGRATE_MULTIFD_CHANNELS 2
 #define DEFAULT_MIGRATE_MULTIFD_COMPRESSION MULTIFD_COMPRESSION_NONE
@@ -136,6 +137,9 @@ Property migration_properties[] = {
     DEFINE_PROP_UINT64("x-dirty-threshold", MigrationState,
                       parameters.x_dirty_threshold,
                       DEFAULT_MIGRATE_X_DIRTY_THRESHOLD),
+    DEFINE_PROP_UINT64("x-dirty-checkpoint", MigrationState,
+                      parameters.x_dirty_checkpoint,
+                      DEFAULT_MIGRATE_X_DIRTY_CHECKPOINT),
     DEFINE_PROP_UINT32("x-colo-flush-threads", MigrationState,
                       parameters.x_colo_flush_threads,
                       DEFAULT_MIGRATE_X_COLO_FLUSH_THREADS),
@@ -688,6 +692,13 @@ uint64_t migrate_dirty_threshold(void)
     return s->parameters.x_dirty_threshold;
 }
 
+uint64_t migrate_dirty_checkpoint(void)
+{
+    MigrationState *s = migrate_get_current();
+
+    return s->parameters.x_dirty_checkpoint;
+}
+
 uint32_t migrate_colo_flush_threads(void)
 {
     MigrationState *s = migrate_get_current();
@@ -910,6 +921,8 @@ MigrationParameters *qmp_query_migrate_parameters(Error **errp)
     params->x_dirty_check_delay = s->parameters.x_dirty_check_delay;
     params->has_x_dirty_threshold = true;
     params->x_dirty_threshold = s->parameters.x_dirty_threshold;
+    params->has_x_dirty_checkpoint = true;
+    params->x_dirty_checkpoint = s->parameters.x_dirty_checkpoint;
     params->has_x_colo_flush_threads = true;
     params->x_colo_flush_threads = s->parameters.x_colo_flush_threads;
     params->has_block_incremental = true;
@@ -966,6 +979,7 @@ void migrate_params_init(MigrationParameters *params)
     params->has_x_checkpoint_delay = true;
     params->has_x_dirty_check_delay = true;
     params->has_x_dirty_threshold = true;
+    params->has_x_dirty_checkpoint = true;
     params->has_x_colo_flush_threads = true;
     params->has_block_incremental = true;
     params->has_multifd_channels = true;
@@ -1217,6 +1231,9 @@ static void migrate_params_test_apply(MigrateSetParameters *params,
     if (params->has_x_dirty_threshold) {
         dest->x_dirty_threshold = params->x_dirty_threshold;
     }
+    if (params->has_x_dirty_checkpoint) {
+        dest->x_dirty_checkpoint = params->x_dirty_checkpoint;
+    }
     if (params->has_x_colo_flush_threads) {
         dest->x_colo_flush_threads = params->x_colo_flush_threads;
     }
@@ -1336,6 +1353,9 @@ static void migrate_params_apply(MigrateSetParameters *params, Error **errp)
     }
     if (params->has_x_dirty_threshold) {
         s->parameters.x_dirty_threshold = params->x_dirty_threshold;
+    }
+    if (params->has_x_dirty_checkpoint) {
+        s->parameters.x_dirty_checkpoint = params->x_dirty_checkpoint;
     }
     if (params->has_x_colo_flush_threads) {
         s->parameters.x_colo_flush_threads = params->x_colo_flush_threads;

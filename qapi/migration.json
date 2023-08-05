@@ -732,6 +732,9 @@
 # @x-dirty-threshold: The threshold of dirty ram (in bytes) for when
 #     to trigger background ram migration in COLO. (Since 8.1)
 #
+# @x-dirty-checkpoint: The threshold of dirty + transfered ram
+#     (in bytes) to trigger checkpoint. (Since 8.1)
+#
 # @x-colo-flush-threads: The number of threads to flush the colo
 #     cache in parallel. Must be a power of two.
 #     0 means no threads are used.
@@ -793,7 +796,8 @@
 # Features:
 #
 # @unstable: Members @x-checkpoint-delay, @x-vcpu-dirty-limit-period,
-#     @x-dirty-check-delay and @x-dirty-threshold are experimental.
+#     @x-dirty-check-delay, @x-dirty-threshold and @x-dirty-checkpoint
+#     are experimental.
 #
 # Since: 2.4
 ##
@@ -809,6 +813,7 @@
            { 'name': 'x-checkpoint-delay', 'features': [ 'unstable' ] },
            { 'name': 'x-dirty-check-delay', 'features': [ 'unstable' ] },
            { 'name': 'x-dirty-threshold', 'features': [ 'unstable' ] },
+           { 'name': 'x-dirty-checkpoint', 'features': [ 'unstable' ] },
            { 'name': 'x-colo-flush-threads', 'features': [ 'unstable' ] },
            'block-incremental',
            'multifd-channels',
@@ -903,6 +908,9 @@
 # @x-dirty-threshold: The threshold of dirty ram (in bytes) for when
 #     to trigger background ram migration in COLO. (Since 8.1)
 #
+# @x-dirty-checkpoint: The threshold of dirty + transfered ram
+#     (in bytes) to trigger checkpoint. (Since 8.1)
+#
 # @x-colo-flush-threads: The number of threads to flush the colo
 #     cache in parallel. Must be a power of two.
 #     0 means no threads are used.
@@ -964,7 +972,8 @@
 # Features:
 #
 # @unstable: Members @x-checkpoint-delay, @x-vcpu-dirty-limit-period,
-#     @x-dirty-check-delay and @x-dirty-threshold are experimental.
+#     @x-dirty-check-delay, @x-dirty-threshold and @x-dirty-checkpoint
+#     are experimental.
 #
 # TODO: either fuse back into MigrationParameters, or make
 #     MigrationParameters members mandatory
@@ -995,6 +1004,8 @@
                                      'features': [ 'unstable' ] },
             '*x-dirty-threshold': { 'type': 'uint64',
                                           'features': [ 'unstable' ] },
+            '*x-dirty-checkpoint': { 'type': 'uint64',
+                                      'features': [ 'unstable' ] },
             '*x-colo-flush-threads': { 'type': 'uint32',
                                        'features': [ 'unstable' ] },
             '*block-incremental': 'bool',
@@ -1113,6 +1124,9 @@
 # @x-dirty-threshold: The threshold of dirty ram (in bytes) for when
 #     to trigger background ram migration in COLO. (Since 8.1)
 #
+# @x-dirty-checkpoint: The threshold of dirty + transfered ram
+#     (in bytes) to trigger checkpoint. (Since 8.1)
+#
 # @x-colo-flush-threads: The number of threads to flush the colo
 #     cache in parallel. Must be a power of two.
 #     0 means no threads are used.
@@ -1174,7 +1188,8 @@
 # Features:
 #
 # @unstable: Members @x-checkpoint-delay, @x-vcpu-dirty-limit-period,
-#     @x-dirty-check-delay and @x-dirty-threshold are experimental.
+#     @x-dirty-check-delay, @x-dirty-threshold and @x-dirty-checkpoint
+#     are experimental.
 #
 # Since: 2.4
 ##
@@ -1202,6 +1217,8 @@
                                      'features': [ 'unstable' ] },
             '*x-dirty-threshold': { 'type': 'uint64',
                                           'features': [ 'unstable' ] },
+            '*x-dirty-checkpoint': { 'type': 'uint64',
+                                     'features': [ 'unstable' ] },
             '*x-colo-flush-threads': { 'type': 'uint32',
                                        'features': [ 'unstable' ] },
             '*block-incremental': 'bool',

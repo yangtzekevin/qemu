@@ -4210,12 +4210,17 @@
 #     who owns the replication node chain.  Must not be given in
 #     primary mode.
 #
+# @trigger-checkpoint-bytes: In primary mode, trigger a checkpoint
+#     after this many bytes have been written since the last checkpoint.
+#     (Since: 8.1)
+#
 # Since: 2.9
 ##
 { 'struct': 'BlockdevOptionsReplication',
   'base': 'BlockdevOptionsGenericFormat',
   'data': { 'mode': 'ReplicationMode',
-            '*top-id': 'str' },
+            '*top-id': 'str',
+            '*trigger-checkpoint-bytes': 'str' },
   'if': 'CONFIG_REPLICATION' }
 
 ##

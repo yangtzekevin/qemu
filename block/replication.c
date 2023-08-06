@@ -23,6 +23,7 @@
 #include "qapi/error.h"
 #include "qapi/qmp/qdict.h"
 #include "block/replication.h"
+#include "migration/colo.h"
 
 typedef enum {
     BLOCK_REPLICATION_NONE,             /* block replication is not started */
@@ -45,6 +46,8 @@ typedef struct BDRVReplicationState {
     bool orig_hidden_read_only;
     bool orig_secondary_read_only;
     int error;
+    uint64_t bytes_written;
+    uint64_t trigger_checkpoint_bytes;
 } BDRVReplicationState;
 
 static void replication_start(ReplicationState *rs, ReplicationMode mode,
@@ -54,8 +57,9 @@ static void replication_get_error(ReplicationState *rs, Error **errp);
 static void replication_stop(ReplicationState *rs, bool failover,
                              Error **errp);
 
-#define REPLICATION_MODE        "mode"
-#define REPLICATION_TOP_ID      "top-id"
+#define REPLICATION_MODE                     "mode"
+#define REPLICATION_TOP_ID                   "top-id"
+#define REPLICATION_TRIGGER_CHECKPOINT_BYTES "trigger-checkpoint-bytes"
 static QemuOptsList replication_runtime_opts = {
     .name = "replication",
     .head = QTAILQ_HEAD_INITIALIZER(replication_runtime_opts.head),
@@ -67,6 +71,10 @@ static QemuOptsList replication_runtime_opts = {
         {
             .name = REPLICATION_TOP_ID,
             .type = QEMU_OPT_STRING,
+        },
+        {
+            .name = REPLICATION_TRIGGER_CHECKPOINT_BYTES,
+            .type = QEMU_OPT_SIZE,
         },
         { /* end of list */ }
     },
@@ -113,12 +121,22 @@ static int replication_open(BlockDriverState *bs, QDict *options,
                        "The primary side does not support option top-id");
             goto fail;
         }
+
+        s->trigger_checkpoint_bytes =
+                qemu_opt_get_size(opts, REPLICATION_TRIGGER_CHECKPOINT_BYTES,
+                                  0);
     } else if (!strcmp(mode, "secondary")) {
         s->mode = REPLICATION_MODE_SECONDARY;
         top_id = qemu_opt_get(opts, REPLICATION_TOP_ID);
         s->top_id = g_strdup(top_id);
         if (!s->top_id) {
             error_setg(errp, "Missing the option top-id");
+            goto fail;
+        }
+
+        if (qemu_opt_get(opts, REPLICATION_TRIGGER_CHECKPOINT_BYTES)) {
+            error_setg(errp, "The secondary side does not support the option "
+                             REPLICATION_TRIGGER_CHECKPOINT_BYTES);
             goto fail;
         }
     } else {
@@ -263,6 +281,12 @@ replication_co_writev(BlockDriverState *bs, int64_t sector_num,
     }
 
     if (ret == 0) {
+        s->bytes_written += remaining_sectors * BDRV_SECTOR_SIZE;
+        if (s->trigger_checkpoint_bytes
+                && s->bytes_written > s->trigger_checkpoint_bytes) {
+            colo_checkpoint_notify();
+        }
+
         ret = bdrv_co_pwritev(top, sector_num * BDRV_SECTOR_SIZE,
                               remaining_sectors * BDRV_SECTOR_SIZE, qiov, 0);
         return replication_return_value(s, ret);
@@ -461,6 +485,7 @@ static void replication_start(ReplicationState *rs, ReplicationMode mode,
     aio_context = bdrv_get_aio_context(bs);
     aio_context_acquire(aio_context);
     s = bs->opaque;
+    s->bytes_written = 0;
 
     if (s->stage == BLOCK_REPLICATION_DONE ||
         s->stage == BLOCK_REPLICATION_FAILOVER) {
@@ -616,6 +641,7 @@ static void replication_do_checkpoint(ReplicationState *rs, Error **errp)
     aio_context = bdrv_get_aio_context(bs);
     aio_context_acquire(aio_context);
     s = bs->opaque;
+    s->bytes_written = 0;
 
     if (s->stage == BLOCK_REPLICATION_DONE ||
         s->stage == BLOCK_REPLICATION_FAILOVER) {

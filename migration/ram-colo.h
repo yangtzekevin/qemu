@@ -23,7 +23,7 @@ typedef struct ColoFlushParams {
 
 /* 4096 * 4k = 16m bytes chunk size */
 #define COLO_FLUSH_CHUNK_SHIFT 12
-#define COLO_FLUSH_CHUNK_SIZE (1 << COLO_FLUSH_CHUNK_SHIFT)
+#define COLO_FLUSH_CHUNK_SIZE (1ul << COLO_FLUSH_CHUNK_SHIFT)
 
 void colo_flush_threads_init(void);
 void colo_flush_threads_cleanup(void);

@@ -807,7 +807,7 @@ unsigned long colo_bitmap_find_dirty(ColoFlushParams *thread, RAMBlock *rb,
     unsigned long thread_mask = thread->thread_mask;
     unsigned long thread_bits = thread->thread_bits;
     unsigned long first = start;
-    unsigned long next;
+    unsigned long next_zero;
 
     *num = 0;
 
@@ -835,7 +835,7 @@ unsigned long colo_bitmap_find_dirty(ColoFlushParams *thread, RAMBlock *rb,
 
         /* Set thread bits to our thread */
         first |= thread_mask;
-        first &= thread_bits;
+        first &= (thread_bits | ~thread_mask);
 
         /* Clear chunk offset */
         first &= ~(COLO_FLUSH_CHUNK_SIZE - 1);
@@ -845,16 +845,16 @@ unsigned long colo_bitmap_find_dirty(ColoFlushParams *thread, RAMBlock *rb,
         }
     }
 
-    next = find_next_zero_bit(bitmap, size, first + 1);
+    next_zero = find_next_zero_bit(bitmap, size, first + 1);
 
     if (thread_mask) {
         /* num_threads > 1 */
-        unsigned long chunk_end = first | (COLO_FLUSH_CHUNK_SIZE - 1);
-        next = MIN(next, chunk_end);
+        unsigned long chunk_last = first | (COLO_FLUSH_CHUNK_SIZE - 1);
+        next_zero = MIN(next_zero, chunk_last + 1);
     }
-    assert(next >= first);
+    assert(next_zero > first);
 
-    *num = next - first;
+    *num = next_zero - first;
     return first;
 }
 

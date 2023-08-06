@@ -34,6 +34,7 @@ static void *colo_flush_ram_cache_thread(void *opaque) {
         qemu_mutex_lock(&thread->mutex);
         if (thread->quit) {
             qemu_sem_post(&colo_flush_threads->wait_sem);
+            qemu_mutex_unlock(&thread->mutex);
             break;
         }
         qemu_mutex_unlock(&thread->mutex);
@@ -44,6 +45,7 @@ static void *colo_flush_ram_cache_thread(void *opaque) {
                                      - start);
         qemu_sem_post(&colo_flush_threads->wait_sem);
     }
+    rcu_unregister_thread();
 
     return NULL;
 }

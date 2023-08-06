@@ -216,3 +216,6 @@ zbd_zone_append_complete(void *bs, int64_t sector) "bs %p returns append sector 
 
 # ssh.c
 sftp_error(const char *op, const char *ssh_err, int ssh_err_code, int sftp_err_code) "%s failed: %s (libssh error code: %d, sftp error code: %d)"
+
+# replication.c
+colo_replication_triggered(uint64_t written) "%" PRIu64 " bytes written"

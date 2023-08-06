@@ -24,6 +24,7 @@
 #include "qapi/qmp/qdict.h"
 #include "block/replication.h"
 #include "migration/colo.h"
+#include "trace.h"
 
 typedef enum {
     BLOCK_REPLICATION_NONE,             /* block replication is not started */
@@ -284,6 +285,7 @@ replication_co_writev(BlockDriverState *bs, int64_t sector_num,
         s->bytes_written += remaining_sectors * BDRV_SECTOR_SIZE;
         if (s->trigger_checkpoint_bytes
                 && s->bytes_written > s->trigger_checkpoint_bytes) {
+            trace_colo_replication_triggered(s->bytes_written);
             colo_checkpoint_notify();
         }
 

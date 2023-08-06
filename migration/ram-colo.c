@@ -14,6 +14,7 @@
 
 #include "ram.h"
 #include "options.h"
+#include "trace.h"
 
 typedef struct FlushThreads {
     int num_threads;
@@ -37,7 +38,10 @@ static void *colo_flush_ram_cache_thread(void *opaque) {
         }
         qemu_mutex_unlock(&thread->mutex);
 
+        uint64_t start = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
         _colo_flush_ram_cache(thread);
+        trace_colo_flush_thread_took(qemu_clock_get_ms(QEMU_CLOCK_REALTIME)
+                                     - start);
         qemu_sem_post(&colo_flush_threads->wait_sem);
     }
 

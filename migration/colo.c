@@ -718,8 +718,12 @@ static void colo_process_checkpoint(MigrationState *s)
                     goto out;
                 }
 
+                uint64_t start = qemu_clock_get_ms(QEMU_CLOCK_REALTIME);
                 qemu_savevm_state_iterate(s->to_dst_file, false);
+                trace_colo_background_took(qemu_clock_get_ms(QEMU_CLOCK_REALTIME)
+                                           - start);
                 qemu_put_byte(s->to_dst_file, QEMU_VM_EOF);
+
                 ret = qemu_file_get_error(s->to_dst_file);
                 if (ret < 0) {
                     error_setg_errno(&local_err, -ret,

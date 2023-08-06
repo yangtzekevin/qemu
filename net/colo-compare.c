@@ -42,9 +42,6 @@ DECLARE_INSTANCE_CHECKER(CompareState, COLO_COMPARE,
 static QTAILQ_HEAD(, CompareState) net_compares =
        QTAILQ_HEAD_INITIALIZER(net_compares);
 
-static NotifierList colo_compare_notifiers =
-    NOTIFIER_LIST_INITIALIZER(colo_compare_notifiers);
-
 #define COMPARE_READ_LEN_MAX NET_BUFSIZE
 #define MAX_QUEUE_SIZE 1024
 
@@ -188,8 +185,7 @@ static void colo_compare_inconsistency_notify(CompareState *s)
     if (s->notify_dev) {
         notify_remote_frame(s);
     } else {
-        notifier_list_notify(&colo_compare_notifiers,
-                             migrate_get_current());
+        colo_checkpoint_notify();
     }
 }
 
@@ -609,16 +605,6 @@ static int colo_old_packet_check_one(Packet *pkt, int64_t *check_time)
     } else {
         return 1;
     }
-}
-
-void colo_compare_register_notifier(Notifier *notify)
-{
-    notifier_list_add(&colo_compare_notifiers, notify);
-}
-
-void colo_compare_unregister_notifier(Notifier *notify)
-{
-    notifier_remove(notify);
 }
 
 static int colo_old_packet_check_one_conn(Connection *conn,

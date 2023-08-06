@@ -38,7 +38,7 @@
 #include "migration-stats.h"
 
 static bool vmstate_loading;
-static Notifier packets_compare_notifier;
+static bool colo_running = false;
 
 /* User need to know colo mode after COLO failover */
 static COLOMode last_colo_mode;
@@ -64,7 +64,7 @@ static bool colo_runstate_is_stopped(void)
     return runstate_check(RUN_STATE_COLO) || !runstate_is_running();
 }
 
-static void colo_checkpoint_notify(void *opaque)
+static void _colo_checkpoint_notify(void *opaque)
 {
     MigrationState *s = opaque;
     int64_t next_notify_time;
@@ -74,6 +74,15 @@ static void colo_checkpoint_notify(void *opaque)
     s->colo_checkpoint_time = qemu_clock_get_ms(QEMU_CLOCK_HOST);
     next_notify_time = s->colo_checkpoint_time + migrate_checkpoint_delay();
     timer_mod(s->colo_delay_timer, next_notify_time);
+}
+
+void colo_checkpoint_notify(void)
+{
+    if (!colo_running) {
+        return;
+    }
+
+    _colo_checkpoint_notify(migrate_get_current());
 }
 
 static void colo_dirty_check_notify(void *opaque)
@@ -92,7 +101,7 @@ void colo_checkpoint_delay_set(void)
     MigrationState *s = migrate_get_current();
 
     if (migration_in_colo_state()) {
-        colo_checkpoint_notify(s);
+        _colo_checkpoint_notify(s);
         colo_dirty_check_notify(s);
     }
 }
@@ -178,7 +187,7 @@ static void primary_vm_do_failover(void)
      * kick COLO thread which might wait at
      * qemu_sem_wait(&s->colo_checkpoint_sem).
      */
-    colo_checkpoint_notify(s);
+    _colo_checkpoint_notify(s);
 
     /*
      * Wake up COLO thread which may blocked in recv() or send(),
@@ -540,11 +549,6 @@ out:
     return ret;
 }
 
-static void colo_compare_notify_checkpoint(Notifier *notifier, void *data)
-{
-    colo_checkpoint_notify(data);
-}
-
 typedef enum ColoAction {
     ACTION_NONE,
     ACTION_BACKGROUND,
@@ -593,8 +597,7 @@ static void colo_process_checkpoint(MigrationState *s)
     }
     qemu_file_set_delay(s->to_dst_file, false);
 
-    packets_compare_notifier.notify = colo_compare_notify_checkpoint;
-    colo_compare_register_notifier(&packets_compare_notifier);
+    colo_running = true;
 
     /*
      * Wait for Secondary finish loading VM states and enter COLO
@@ -707,7 +710,7 @@ out:
      * released before unregister notifier, or there will be use-after-free
      * error.
      */
-    colo_compare_unregister_notifier(&packets_compare_notifier);
+    colo_running = false;
     timer_free(s->colo_delay_timer);
     timer_free(s->colo_dirty_check_timer);
     qemu_event_destroy(&s->colo_checkpoint_event);
@@ -729,7 +732,7 @@ void migrate_start_colo_process(MigrationState *s)
     qemu_event_init(&s->colo_checkpoint_event, false);
     s->colo_checkpoint_request = 0;
     s->colo_delay_timer =  timer_new_ms(QEMU_CLOCK_HOST,
-                                colo_checkpoint_notify, s);
+                                _colo_checkpoint_notify, s);
     s->colo_dirty_check_timer = timer_new_ms(QEMU_CLOCK_HOST,
                                     colo_dirty_check_notify, s);
     s->colo_last_transferred_bytes =

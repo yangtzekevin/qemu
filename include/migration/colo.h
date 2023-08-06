@@ -29,6 +29,8 @@ bool migration_incoming_in_colo_state(void);
 
 COLOMode get_colo_mode(void);
 
+void colo_checkpoint_notify(void);
+
 /* failover */
 void colo_do_failover(void);
 

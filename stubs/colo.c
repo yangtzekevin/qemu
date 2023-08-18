@@ -6,6 +6,10 @@
 #include "qemu/error-report.h"
 #include "qapi/qapi-commands-migration.h"
 
+void colo_checkpoint_notify(void)
+{
+}
+
 void colo_shutdown(void)
 {
 }
